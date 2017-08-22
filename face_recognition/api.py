@@ -63,9 +63,15 @@ def face_distance(face_encodings, face_to_compare):
     """
     if len(face_encodings) == 0:
         return np.empty((0))
-
-    return np.linalg.norm(face_encodings - face_to_compare, axis=1)
-
+    list = []
+    for (name, endcode) in face_encodings:
+        list.append(endcode)
+    results = np.linalg.norm(list - face_to_compare, axis=1)
+    listResult = []
+    for index in range(len(results)):
+        if results[index]<0.65:
+            listResult.append((face_encodings[index][0], results[index]))
+    return listResult
 
 def load_image_file(file, mode='RGB'):
     """
@@ -143,9 +149,18 @@ def face_encodings(face_image, known_face_locations=None, num_jitters=1):
     :param num_jitters: How many times to re-sample the face when calculating encoding. Higher is more accurate, but slower (i.e. 100 is 100x slower)
     :return: A list of 128-dimentional face encodings (one for each face in the image)
     """
-    raw_landmarks = _raw_face_landmarks(face_image, known_face_locations)
+    if known_face_locations is None:
+        known_face_locations = _raw_face_locations(face_image)
+    else:
+        known_face_locations = [_css_to_rect(face_location) for face_location in known_face_locations]
 
-    return [np.array(face_encoder.compute_face_descriptor(face_image, raw_landmark_set, num_jitters)) for raw_landmark_set in raw_landmarks]
+    listLocation = []
+    raw_landmarks = []
+    for face_location in known_face_locations:
+        listLocation.append(_trim_css_to_bounds(_rect_to_css(face_location), face_image.shape))
+        raw_landmarks.append(pose_predictor(face_image, face_location))
+
+    return (listLocation,[np.array(face_encoder.compute_face_descriptor(face_image, raw_landmark_set, num_jitters)) for raw_landmark_set in raw_landmarks])
 
 
 def compare_faces(known_face_encodings, face_encoding_to_check, tolerance=0.6):
